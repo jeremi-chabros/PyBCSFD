@@ -15,16 +15,13 @@ def mainf(arg):
     Data = data[arg]
     P_b = Data["P_b"]
 
+    # These are values from the literature
     params_means = [10.45, 0.33, 7.5]
     params_stddevs = [2.03, 0.08, 1.5]
     lower_bounds = [0.01, 0.01, -10.0]
     upper_bounds = [50.0, 1.0, P_b]
-    Ib_max = 1.00
-    Ib_min = 0.01
 
     # CSF dynamics model
-
-
     def dyn_model(Rcsf, E, P_0):
         I_b = (Data["P_b"] - P_0) / Rcsf  # CSF formation rate
 
@@ -32,7 +29,7 @@ def mainf(arg):
         infend = Data["infusion_end"]
         I_inf = Data["I_inf"]
 
-        Rn = Data["Rn"]  # Needle resistance (one-needle)
+        Rn = Data["Rn"]  # Needle resistance (if one-needle only)
         dP = Data["P_b"] - P_0
         It = I_b + I_inf
 
@@ -41,7 +38,7 @@ def mainf(arg):
 
         return Pm
 
-
+    # Define PyMC model
     with pm.Model() as model:
 
         # Priors
@@ -52,7 +49,7 @@ def mainf(arg):
         Rout = pm.TruncatedNormal(
             'Rout', mu=params_means[0], sigma=params_stddevs[0], lower=lower_bounds[0], upper=upper_bounds[0])
 
-        # # Soft Constraint (Potential)
+        # Soft Constraint (Potential) for a dependent variable
         Ib = (Data["P_b"] - P0) / Rout
         min_value = 0.01
         max_value = 1.00
@@ -74,12 +71,14 @@ def mainf(arg):
         # draw 1000 posterior samples
         idata = pm.sample()
 
+    # Extract posterior means for plotting
     Rout = float(np.mean(idata.posterior.Rout))
     P0 = float(np.mean(idata.posterior.P0))
     E = float(np.mean(idata.posterior.E))
 
     icp_trace = Data["pressure"][Data['infusion_start']-1:Data['infusion_end']]
 
+    # Plot model fit to data
     plt.plot(dyn_model(Rout, E, P0))
     plt.plot(icp_trace)
     plt.xlabel('Time [frames at 0.1 Hz]')
@@ -87,6 +86,7 @@ def mainf(arg):
     plt.savefig('fit.png')
     plt.show()
 
+# Parsing input
 parser = argparse.ArgumentParser(description="Run the mother function with a provided argument.")
 parser.add_argument("arg", type=int, help="An integer argument for the mother function")
 args = parser.parse_args()
